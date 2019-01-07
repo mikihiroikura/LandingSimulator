@@ -1,8 +1,12 @@
 #include <ode/ode.h>
 #include <drawstuff/drawstuff.h>
 #include "texturepath.h"
-
-#define dDOUBLE
+#include <vector>
+#include <time.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <Windows.h>
+#include <direct.h>
 
 #ifdef dDOUBLE                      // 単精度と倍精度の両方に対応する
 #define dsDrawSphere dsDrawSphereD  // ためのおまじない
@@ -10,6 +14,14 @@
 #define dsDrawCylinder dsDrawCylinderD
 #define dsDrawCapsule dsDrawCapsuleD
 #endif
+
+#define ONE_STEP 0.01
+#define SIM_CNT_MAX 6000
+#define GNUPLOT_PATH	"\"C:\\Program Files\\gnuplot\\bin\\gnuplot.exe\""	// パスに空白があるため[\"]を前後に追加
+#define FILE_PATH "data/%y%m%d_%H%M%S_logs.txt"
+#define FILENAME_GRAPH1 "img_jnt_pos.png"
+
+using namespace std;
 
 dWorldID world;  // 動力学計算用ワールド
 dSpaceID space;  // 衝突検出用スペース
@@ -26,6 +38,9 @@ typedef struct {       // MyObject構造体
 } MyObject;
 
 MyObject body, leg[2], piston1, piston2;
+int steps;
+vector<double> heights,times;
+char file_name[256];
 
 // コールバック関数
 static void nearCallback(void *data, dGeomID o1, dGeomID o2)
@@ -57,7 +72,7 @@ static void nearCallback(void *data, dGeomID o1, dGeomID o2)
 static void simLoop(int pause) {
 	dSpaceCollide(space, 0, &nearCallback);  // 衝突検出関数
 
-	dWorldStep(world, 0.01);
+	dWorldStep(world, ONE_STEP);
 	dJointGroupEmpty(contactgroup); // ジョイントグループを空にする
 
 	dReal bx = 0.1; dReal by = 0.3; dReal bz = 0.05;
@@ -71,6 +86,13 @@ static void simLoop(int pause) {
 	dsSetColor(1, 1, 1);
 	dsDrawCylinder(dBodyGetPosition(piston1.body), dBodyGetRotation(piston1.body), piston1.l, piston1.r);
 	dsDrawCylinder(dBodyGetPosition(piston2.body), dBodyGetRotation(piston2.body), piston2.l, piston2.r);
+
+	//Bodyの高度計測
+	heights.push_back(dBodyGetPosition(body.body)[2]);
+	times.push_back(steps*ONE_STEP);
+
+	steps++;
+	if (steps > SIM_CNT_MAX) { dsStop(); }
 
 }
 
@@ -164,6 +186,7 @@ void start()                                  /*** 前処理　***/
 	static float xyz[3] = { 3.0,0.0,1.0 };         // 視点の位置
 	static float hpr[3] = { -180, 0, 0 };          // 視線の方向
 	dsSetViewpoint(xyz, hpr);                     // カメラの設定
+	steps = 0;
 }
 
 void setDrawStuff()           /*** 描画関数の設定 ***/
@@ -172,6 +195,34 @@ void setDrawStuff()           /*** 描画関数の設定 ***/
 	fn.start = &start;        // 前処理 start関数のポインタ
 	fn.step = &simLoop;      // simLoop関数のポインタ
 	fn.path_to_textures = "C:/ode-0.13/drawstuff/textures"; // テクスチャ
+}
+
+void saveData() {
+	time_t timer;
+	struct tm now;
+	struct tm *local;
+	timer = time(NULL);
+	localtime_s(&now, &timer);
+	strftime(file_name, 256, FILE_PATH, &now);
+	FILE *fp;
+	fp = fopen(file_name, "w");
+	for (size_t i = 0; i < times.size(); i++)
+	{
+		fprintf(fp, "%f ", times[i]);
+		fprintf(fp, "%f ", heights[i]);
+		fprintf(fp, "\n");
+	}
+	fclose(fp);
+}
+
+void saveGraph() {
+	FILE *gp;
+	if ((gp = _popen(GNUPLOT_PATH, "w")) == NULL) { printf("Can not find %s!", GNUPLOT_PATH);}
+	else { printf("GNUPLOT activates."); }
+	fprintf(gp, "pl \"%s\" us 1:2 w l\n", file_name);
+	fprintf(gp, "set terminal png\n set out \"%s\"\n rep\n", FILENAME_GRAPH1);
+	fflush(gp); // バッファに格納されているデータを吐き出す（必須）
+	_pclose(gp);
 }
 
 int main(int argc, char **argv) {
@@ -188,6 +239,10 @@ int main(int argc, char **argv) {
 	makelander();
 
 	dsSimulationLoop(argc, argv, 640, 480, &fn);
+	
+	saveData();
+	saveGraph();
+
 	dSpaceDestroy(space);
 	dWorldDestroy(world);
 	dCloseODE();

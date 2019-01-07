@@ -265,20 +265,5 @@ __pycache__/
 *.pyc
 
 #ˆä‘q’Ç‰Á
-SatAttSim/data/logs/
-SatAttSim/src/Dynamics/
-SatAttSim/src/Environment/
-SatAttSim/src/Library/igrf
-SatAttSim/src/Library/sgp4
-SatAttSim/src/Interface/SpacecraftInOut/
-SatAttSim/stdafx.cpp
-SatAttSim/stdafx.h
-SatAttSim/targetver.h
-readme.txt
-SatAttSim.sln
-SatAttSim/ReadMe.txt
-SatAttSim/SatAttSim.vcxproj
-SatAttSim/SatAttSim.vcxproj.filters
-SatAttSim/src/Disturbance/
-SatAttSim/src/Interface/LogOutput/
-.gitattributes
+*.png
+*.txt
