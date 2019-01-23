@@ -17,11 +17,10 @@
 #define dsDrawCapsule dsDrawCapsuleD
 #endif
 
-#define ONE_STEP 0.01
-#define SIM_CNT_MAX 6000
 #define GNUPLOT_PATH	"\"C:\\Program Files\\gnuplot\\bin\\gnuplot.exe\""	// パスに空白があるため[\"]を前後に追加
 #define FILE_PATH "data/%y%m%d_%H%M%S_logs.txt"
 #define FILENAME_GRAPH1 "img_jnt_pos.png"
+#define FILENAME_GRAPH2 "img_leg_length.png"
 
 using namespace std;
 
@@ -30,8 +29,8 @@ dSpaceID space;  // 衝突検出用スペース
 dGeomID  ground; // 地面
 dJointGroupID contactgroup; // コンタクトグループ
 dsFunctions fn;
-dJointID sjoint1, sjoint2;//スライダージョイント
-dJointID fixed[2];//脚ロボットとBodyの固定
+dJointID sjoint[LEG_NUM];//スライダージョイント
+dJointID fixed[LEG_NUM];//脚ロボットとBodyの固定
 
 typedef struct {       // MyObject構造体
 	dBodyID body;        // ボディ(剛体)のID番号（動力学計算用）
@@ -39,13 +38,13 @@ typedef struct {       // MyObject構造体
 	double  l, r, m;       // 長さ[m], 半径[m]，質量[kg]
 } MyObject;
 
-MyObject body, leg[2], piston1, piston2;
-int steps;
-vector<double> heights, times;
+MyObject body, leg[LEG_NUM], piston[LEG_NUM];
 char file_name[256];
 
 float xyz[3] = { 3.0,0.0,1.0 };         // 視点の位置
 float hpr[3] = { -180, 0, 0 };          // 視線の方向
+
+SIM sim;
 
 // コールバック関数
 static void nearCallback(void *data, dGeomID o1, dGeomID o2)
@@ -74,41 +73,15 @@ static void nearCallback(void *data, dGeomID o1, dGeomID o2)
 	}
 }
 
-//ODEシミュレーションループ
-static void simLoop(int pause) {
-	//UAVオブジェクトの書き込み
-	//dReal bx = 0.1; dReal by = 0.3; dReal bz = 0.05;
-	drawlander();
-
-	//Bodyの高度計測
-	heights.push_back(dBodyGetPosition(body.body)[2]);
-	times.push_back(steps*ONE_STEP);
-
-	//脚ロボット先端と地面との距離計測
-	//何か//
-
-	//
-
-
-	dSpaceCollide(space, 0, &nearCallback);  // 衝突検出関数
-
-	dWorldStep(world, ONE_STEP);
-	dJointGroupEmpty(contactgroup); // ジョイントグループを空にする
-
-	steps++;
-	if (steps > SIM_CNT_MAX) { dsStop(); }
-
-}
-
 void start()                                  /*** 前処理　***/
 {
 	dsSetViewpoint(xyz, hpr);                     // カメラの設定
-	steps = 0;
+	sim.steps = 0;
 }
 
 //シミュレーションリスタート関数
 void restart() {
-	steps = 0;
+	sim.steps = 0;
 	//破壊
 	destroylander();
 	dJointGroupDestroy(contactgroup);
@@ -134,6 +107,78 @@ static void command(int cmd)
 	}
 }
 
+//地面との距離計算
+void calcDist() {
+	for (size_t i = 0; i < LEG_NUM; i++)
+	{
+		sim.leglen[i] = dJointGetSliderPosition(sjoint[i]);
+		sim.legvel[i] = dJointGetSliderPositionRate(sjoint[i]);
+		for (size_t j = 0; j < DIM3; j++)
+		{
+			sim.legpos[i][j] = dBodyGetPosition(leg[i].body)[j];
+		}
+		sim.Rot[i] = dBodyGetRotation(leg[i].body);
+		dReal temp[3];
+		dReal vec[3];
+		vec[2] = leg[i].l / 2.0;
+		dMultiply0(temp, sim.Rot[i], vec, 3, 3, 1);
+		sim.dist[i] = sim.legpos[i][2] + temp[2];
+	}
+}
+
+//地面との距離から求める仮想力
+void ctrlLeg() {
+	//初期化
+	if (sim.steps==0)
+	{
+
+	}
+}
+
+//計算結果をログ配列に格納
+void copyLogData() {
+	if (sim.steps<SIM_CNT_MAX)
+	{
+		sim.heights[sim.steps] = dBodyGetPosition(body.body)[2];
+		sim.times[sim.steps] = sim.steps*ONE_STEP;
+		for (size_t i = 0; i < LEG_NUM; i++)
+		{
+			sim.log_leglen[sim.steps][i] = sim.leglen[i];
+			sim.log_legvel[sim.steps][i] = sim.legvel[i];
+		}
+	}
+}
+
+//ODEシミュレーションループ
+static void simLoop(int pause) {
+	//UAVオブジェクトの書き込み
+	//dReal bx = 0.1; dReal by = 0.3; dReal bz = 0.05;
+	drawlander();
+	
+
+	//脚ロボットの状態量の更新
+
+
+	//脚ロボット先端と地面との距離計測
+	calcDist();
+
+	//力計算
+	//何か
+
+	//計算結果をログとして保存
+	copyLogData();
+	
+
+	dSpaceCollide(space, 0, &nearCallback);  // 衝突検出関数
+
+	dWorldStep(world, ONE_STEP);
+	dJointGroupEmpty(contactgroup); // ジョイントグループを空にする
+
+	sim.steps++;
+	if (sim.steps > SIM_CNT_MAX) { dsStop(); }
+
+}
+
 void setDrawStuff()           /*** 描画関数の設定 ***/
 {
 	fn.version = DS_VERSION;    // ドロースタッフのバージョン
@@ -153,10 +198,15 @@ void saveData() {
 	strftime(file_name, 256, FILE_PATH, &now);
 	FILE *fp;
 	fp = fopen(file_name, "w");
-	for (size_t i = 0; i < times.size(); i++)
+	for (size_t i = 0; i < SIM_CNT_MAX; i++)
 	{
-		fprintf(fp, "%f ", times[i]);
-		fprintf(fp, "%f ", heights[i]);
+		fprintf(fp, "%f ", sim.times[i]);
+		fprintf(fp, "%f ", sim.heights[i]);
+		for (size_t j = 0; j < LEG_NUM; j++)
+		{
+			fprintf(fp, "%f ", sim.log_leglen[i][j]);
+			fprintf(fp, "%f ", sim.log_legvel[i][j]);
+		}
 		fprintf(fp, "\n");
 	}
 	fclose(fp);
@@ -166,9 +216,11 @@ void saveData() {
 void saveGraph() {
 	FILE *gp;
 	if ((gp = _popen(GNUPLOT_PATH, "w")) == NULL) { printf("Can not find %s!", GNUPLOT_PATH);}
-	else { printf("GNUPLOT activates."); }
+	else { printf("GNUPLOT activates.\n"); }
 	fprintf(gp, "pl \"%s\" us 1:2 w l\n", file_name);
 	fprintf(gp, "set terminal png\n set out \"%s\"\n rep\n", FILENAME_GRAPH1);
+	fprintf(gp, "pl \"%s\" us 1:3 w l, \"%s\" us 1:5 w l\n", file_name,file_name);
+	fprintf(gp, "set terminal png\n set out \"%s\"\n rep\n", FILENAME_GRAPH2);
 	fflush(gp); // バッファに格納されているデータを吐き出す（必須）
 	_pclose(gp);
 }
@@ -195,5 +247,6 @@ int main(int argc, char **argv) {
 	dSpaceDestroy(space);
 	dWorldDestroy(world);
 	dCloseODE();
+	system("pause");
 	return 0;
 }
