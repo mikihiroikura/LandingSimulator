@@ -219,6 +219,7 @@ void saveGraph() {
 	else { printf("GNUPLOT activates.\n"); }
 	fprintf(gp, "pl \"%s\" us 1:2 w l\n", file_name);
 	fprintf(gp, "set terminal png\n set out \"%s\"\n rep\n", FILENAME_GRAPH1);
+	fprintf(gp, "set term wxt 1\n");
 	fprintf(gp, "pl \"%s\" us 1:3 w l, \"%s\" us 1:5 w l\n", file_name,file_name);
 	fprintf(gp, "set terminal png\n set out \"%s\"\n rep\n", FILENAME_GRAPH2);
 	fflush(gp); // バッファに格納されているデータを吐き出す（必須）
