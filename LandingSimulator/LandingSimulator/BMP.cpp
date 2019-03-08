@@ -3,8 +3,9 @@
 
 using namespace std;
 
-vector<GLubyte *> pixel_data_logs;
+GLubyte * pixel_data_logs[600];
 char bmpfile[10] = "000.bmp";	// 「000～999」の連番となるファイル
+int cnt = 0;
 
 
 // BMPヘッダの初期値
@@ -60,7 +61,8 @@ int WriteBMP(int width, int height){
 	glReadPixels(0,0,width,height,GL_RGB,GL_UNSIGNED_BYTE,ode_pixel_data);
 	
 	//vectorに保存
-	pixel_data_logs.push_back(ode_pixel_data);
+	pixel_data_logs[cnt]= ode_pixel_data;
+	cnt++;
 
 	return 0;
 }
@@ -88,7 +90,7 @@ int SaveBMP(int width, int height) {
 	WriteHeaders(&file, fp);
 
 	// BMPピクセルデータの書込
-	for (size_t i = 0; i < pixel_data_logs.size(); i++)
+	for (size_t i = 0; i < 600; i++)
 	{
 		for (y = 0; y < height; y++) {
 			for (x = 0; x < width; x++) {
