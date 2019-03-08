@@ -1,11 +1,15 @@
 #include "BMP.h"
 #include <vector>
+#include <cstdio>
 
 using namespace std;
 
-GLubyte * pixel_data_logs[600];
-char bmpfile[10] = "000.bmp";	// 「000～999」の連番となるファイル
-int cnt = 0;
+#define FILE_NAME "/%d.bmp"
+
+vector<GLubyte *> pixel_data_logs;
+char bmpfile[10];	// 「000～999」の連番となるファイル
+char bmpfile_name[256];
+
 
 
 // BMPヘッダの初期値
@@ -61,37 +65,38 @@ int WriteBMP(int width, int height){
 	glReadPixels(0,0,width,height,GL_RGB,GL_UNSIGNED_BYTE,ode_pixel_data);
 	
 	//vectorに保存
-	pixel_data_logs[cnt]= ode_pixel_data;
-	cnt++;
+	pixel_data_logs.push_back(ode_pixel_data);
 
 	return 0;
 }
 
 //連番でBMPファイルの保存
-int SaveBMP(int width, int height) {
+int SaveBMP(char *folder,int width, int height) {
 	FILE *fp;
 	BitmapHeaders file;
 	int x, y;
-	
-	// ファイルオープン
-	fp = fopen(bmpfile, "wb");
-	if (fp == NULL) {
-		printf("failure\n");
-		return -1;
-	}
 
 	// BMPヘッダの初期化
 	InitHeaders(&file);
 
-	// BMPヘッダの書込
-	file.width = width;
-	file.height = height;
-	file.filesize = (width * 3)*height + 54;
-	WriteHeaders(&file, fp);
-
 	// BMPピクセルデータの書込
-	for (size_t i = 0; i < 600; i++)
+	for (int i = 0; i < pixel_data_logs.size(); i++)
 	{
+		//ファイル名指定
+		sprintf(bmpfile, FILE_NAME, i);
+		sprintf(bmpfile_name, "%s%s", folder, bmpfile);
+
+		// ファイルオープン
+		fp = fopen(bmpfile_name, "wb");
+		if (fp == NULL) {
+			printf("failure\n");
+			return -1;
+		}
+		// BMPヘッダの書込
+		file.width = width;
+		file.height = height;
+		file.filesize = (width * 3)*height + 54;
+		WriteHeaders(&file, fp);
 		for (y = 0; y < height; y++) {
 			for (x = 0; x < width; x++) {
 				fwrite((pixel_data_logs[i] + x * 3 + (width * 3)*y + 2), sizeof(GLubyte), 1, fp);
@@ -99,19 +104,15 @@ int SaveBMP(int width, int height) {
 				fwrite((pixel_data_logs[i] + x * 3 + (width * 3)*y + 0), sizeof(GLubyte), 1, fp);
 			}
 		}
+
+		printf("img No.%d saved.\n", i);
+
+		delete pixel_data_logs[i];
+
+
+		// ファイルクローズ
+		fclose(fp);
 	}
 
-	// ファイル名を連番にする
-	bmpfile[2]++;
-	if (bmpfile[2] == '9' + 1) {
-		bmpfile[2] = '0';
-		bmpfile[1]++;
-		if (bmpfile[1] == '9' + 1) {
-			bmpfile[1] = '0';
-			bmpfile[0]++;
-		}
-	}
-
-	// ファイルクローズ
-	fclose(fp);
+	
 }

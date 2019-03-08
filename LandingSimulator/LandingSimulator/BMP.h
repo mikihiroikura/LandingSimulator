@@ -27,4 +27,4 @@ typedef struct _BitmapHeaders{
 
 //ODE描画ピクセルデータをＢＭＰファイル出力（１コマンド＝1ファイル）
 extern int WriteBMP(int width, int height);
-extern int SaveBMP(int width, int height);
+extern int SaveBMP(char *folder,int width, int height);

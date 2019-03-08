@@ -19,9 +19,13 @@
 #endif
 
 #define GNUPLOT_PATH	"\"C:\\Program Files\\gnuplot\\bin\\gnuplot.exe\""	// パスに空白があるため[\"]を前後に追加
-#define FILE_PATH "data/%y%m%d_%H%M%S_logs.txt"
+#define FOLDER_PATH "data/%y%m%d_%H%M%S"
+#define LOG_FILE "/logs.txt"
+#define BMP_FILE "/imgs"
 #define FILENAME_GRAPH1 "img_jnt_pos.png"
 #define FILENAME_GRAPH2 "img_leg_length.png"
+
+#define BMP_FLG 1
 
 using namespace std;
 
@@ -35,7 +39,6 @@ dJointID fixed[LEG_NUM];//脚ロボットとBodyの固定
 
 //BMPファイル保存
 double bmp_time = 0.;		// BMPファイル出力の時間間隔
-int bmp_flag = 1;			// BMPファイル出力フラッグ
 
 typedef struct {       // MyObject構造体
 	dBodyID body;        // ボディ(剛体)のID番号（動力学計算用）
@@ -46,6 +49,8 @@ typedef struct {       // MyObject構造体
 
 MyObject body, leg[LEG_NUM], piston[LEG_NUM];
 char file_name[256];
+char folder_name[256];
+char picfolder[256];
 
 float xyz[3] = { 3.0,0.0,1.0 };         // 視点の位置
 float hpr[3] = { -180, 0, 0 };          // 視線の方向
@@ -177,7 +182,7 @@ static void simLoop(int pause) {
 	
 
 	//BMPファイルの出力
-	if (bmp_flag == 1 && ((sim.steps >= 0) && (sim.steps < SIM_CNT_MAX))) {
+	if (BMP_FLG == 1 && ((sim.steps >= 0) && (sim.steps < SIM_CNT_MAX))) {
 		bmp_time = bmp_time + ONE_STEP;
 
 		// BMPファイル出力時間間隔（FPSに相当）
@@ -228,7 +233,9 @@ void saveData() {
 	struct tm *local;
 	timer = time(NULL);
 	localtime_s(&now, &timer);
-	strftime(file_name, 256, FILE_PATH, &now);
+	strftime(folder_name, 256, FOLDER_PATH, &now);
+	_mkdir(folder_name);
+	sprintf(file_name, "%s%s", folder_name, LOG_FILE);
 	FILE *fp;
 	fp = fopen(file_name, "w");
 	for (size_t i = 0; i < SIM_CNT_MAX; i++)
@@ -277,7 +284,9 @@ int main(int argc, char **argv) {
 	
 	saveData();
 	saveGraph();
-	SaveBMP(640, 480);
+	sprintf(picfolder, "%s%s", folder_name, BMP_FILE);
+	_mkdir(picfolder);
+	SaveBMP(picfolder,640, 480);
 
 	dSpaceDestroy(space);
 	dWorldDestroy(world);
