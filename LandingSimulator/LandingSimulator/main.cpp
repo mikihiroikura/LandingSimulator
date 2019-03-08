@@ -34,9 +34,8 @@ dJointID sjoint[LEG_NUM];//スライダージョイント
 dJointID fixed[LEG_NUM];//脚ロボットとBodyの固定
 
 //BMPファイル保存
-char bmpfile[10] = "000.bmp";	// 「000～999」の連番となるファイル
-int bmp_flag = 1;			// BMPファイル出力フラッグ
 double bmp_time = 0.;		// BMPファイル出力の時間間隔
+int bmp_flag = 1;			// BMPファイル出力フラッグ
 
 typedef struct {       // MyObject構造体
 	dBodyID body;        // ボディ(剛体)のID番号（動力学計算用）
@@ -185,18 +184,7 @@ static void simLoop(int pause) {
 		if (bmp_time > BMP_STEP) {
 			bmp_time = 0;		// 初期化
 
-			WriteBMP(bmpfile, 640, 480);	// BMPファイルを出力
-
-			// ファイル名を連番にする
-			bmpfile[2]++;
-			if (bmpfile[2] == '9' + 1) {
-				bmpfile[2] = '0';
-				bmpfile[1]++;
-				if (bmpfile[1] == '9' + 1) {
-					bmpfile[1] = '0';
-					bmpfile[0]++;
-				}
-			}
+			WriteBMP(640, 480);	// BMPファイルを出力
 		}
 	}
 
@@ -289,6 +277,7 @@ int main(int argc, char **argv) {
 	
 	saveData();
 	saveGraph();
+	SaveBMP(640, 480);
 
 	dSpaceDestroy(space);
 	dWorldDestroy(world);
