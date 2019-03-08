@@ -9,6 +9,7 @@
 #include <direct.h>
 
 #include "makerobot.h"
+#include "BMP.h"
 
 #ifdef dDOUBLE                      // 単精度と倍精度の両方に対応する
 #define dsDrawSphere dsDrawSphereD  // ためのおまじない
@@ -32,10 +33,16 @@ dsFunctions fn;
 dJointID sjoint[LEG_NUM];//スライダージョイント
 dJointID fixed[LEG_NUM];//脚ロボットとBodyの固定
 
+//BMPファイル保存
+char bmpfile[10] = "000.bmp";	// 「000～999」の連番となるファイル
+int bmp_flag = 1;			// BMPファイル出力フラッグ
+double bmp_time = 0.;		// BMPファイル出力の時間間隔
+
 typedef struct {       // MyObject構造体
 	dBodyID body;        // ボディ(剛体)のID番号（動力学計算用）
 	dGeomID geom;        // ジオメトリのID番号(衝突検出計算用）
 	double  l, r, m;       // 長さ[m], 半径[m]，質量[kg]
+	Impedance imp;		 //SLSモデルのインピーダンスパラメータ(pistonのみ)
 } MyObject;
 
 MyObject body, leg[LEG_NUM], piston[LEG_NUM];
@@ -115,14 +122,14 @@ void calcDist() {
 		sim.legvel[i] = dJointGetSliderPositionRate(sjoint[i]);
 		for (size_t j = 0; j < DIM3; j++)
 		{
-			sim.legpos[i][j] = dBodyGetPosition(leg[i].body)[j];
+			sim.legpos[i][j] = dBodyGetPosition(piston[i].body)[j];
 		}
-		sim.Rot[i] = dBodyGetRotation(leg[i].body);
+		sim.Rot[i] = dBodyGetRotation(piston[i].body);
 		dReal temp[3];
 		dReal vec[3];
-		vec[2] = leg[i].l / 2.0;
+		vec[2] = piston[i].l / 2.0;
 		dMultiply0(temp, sim.Rot[i], vec, 3, 3, 1);
-		sim.dist[i] = sim.legpos[i][2] + temp[2];
+		sim.dist[i] = sim.legpos[i][2] - temp[2];
 	}
 }
 
@@ -131,8 +138,22 @@ void ctrlLeg() {
 	//初期化
 	if (sim.steps==0)
 	{
+		//インピーダンスパラメータ設定
+		//今回は，両レッグで均等に設定
+		for (size_t i = 0; i < LEG_NUM; i++)
+		{
+			piston[i].imp.m = piston[i].m;
+			piston[i].imp.C = 0.8;
+			piston[i].imp.K = 5.2;
+			piston[i].imp.K0 = 1.0;
+		}
 
 	}
+	//SLSによる駆動力計算
+
+
+	//駆動力入力
+
 }
 
 //計算結果をログ配列に格納
@@ -156,11 +177,35 @@ static void simLoop(int pause) {
 	drawlander();
 	
 
+	//BMPファイルの出力
+	if (bmp_flag == 1 && ((sim.steps >= 0) && (sim.steps < SIM_CNT_MAX))) {
+		bmp_time = bmp_time + ONE_STEP;
+
+		// BMPファイル出力時間間隔（FPSに相当）
+		if (bmp_time > BMP_STEP) {
+			bmp_time = 0;		// 初期化
+
+			WriteBMP(bmpfile, 640, 480);	// BMPファイルを出力
+
+			// ファイル名を連番にする
+			bmpfile[2]++;
+			if (bmpfile[2] == '9' + 1) {
+				bmpfile[2] = '0';
+				bmpfile[1]++;
+				if (bmpfile[1] == '9' + 1) {
+					bmpfile[1] = '0';
+					bmpfile[0]++;
+				}
+			}
+		}
+	}
+
+
 	//脚ロボットの状態量の更新
 
 
 	//脚ロボット先端と地面との距離計測
-	calcDist();
+	//calcDist();
 
 	//力計算
 	//何か

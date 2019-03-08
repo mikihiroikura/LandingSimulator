@@ -8,6 +8,7 @@
 using namespace std;
 
 #define ONE_STEP 0.01
+#define BMP_STEP 0.1
 #define SIM_CNT_MAX 6000
 #define LEG_NUM 2
 #define DIM3 3
@@ -23,9 +24,10 @@ typedef struct {
 	//変数
 	double dist[LEG_NUM];//脚ロボットと地面の距離
 	double leglen[LEG_NUM];//脚ロボットの相対長さ(1次元)
-	double legpos[LEG_NUM][DIM3];//脚ロボットの絶対位置(3次元)
+	double legpos[LEG_NUM][DIM3];//脚ロボット(ピストン)の絶対位置(3次元)
 	double legvel[LEG_NUM];//脚ロボットの相対速度(1次元)
 	const dReal * Rot[LEG_NUM];//脚ロボットの回転行列
+	double Fout[LEG_NUM][DIM3];//脚ロボットにかかる外力
 
 	//ログ格納用配列
 	double heights[SIM_CNT_MAX];//UAVの胴体の高度
@@ -34,5 +36,9 @@ typedef struct {
 	double log_legvel[SIM_CNT_MAX][LEG_NUM];//脚ロボットの相対速度
 	
 
-
 }SIM;
+
+typedef struct {
+	double m,C, K, K0;//SLS modelのパラメータ群
+	//m:重さ,C:粘性,K:弾性,K0:弾性(SLS並列ばね)
+}Impedance;

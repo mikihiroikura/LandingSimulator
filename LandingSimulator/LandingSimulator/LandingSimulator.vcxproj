@@ -87,6 +87,9 @@
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
     </ClCompile>
+    <Link>
+      <AdditionalDependencies>opengl32.lib;glu32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -117,10 +120,12 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="BMP.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="makerobot.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="BMP.h" />
     <ClInclude Include="main.h" />
     <ClInclude Include="makerobot.h" />
     <ClInclude Include="texturepath.h" />
