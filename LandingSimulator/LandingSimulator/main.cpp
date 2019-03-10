@@ -37,8 +37,6 @@ dsFunctions fn;
 dJointID sjoint[LEG_NUM];//スライダージョイント
 dJointID fixed[LEG_NUM];//脚ロボットとBodyの固定
 
-//BMPファイル保存
-double bmp_time = 0.;		// BMPファイル出力の時間間隔
 
 typedef struct {       // MyObject構造体
 	dBodyID body;        // ボディ(剛体)のID番号（動力学計算用）
@@ -183,12 +181,9 @@ static void simLoop(int pause) {
 
 	//BMPファイルの出力
 	if (BMP_FLG == 1 && ((sim.steps >= 0) && (sim.steps < SIM_CNT_MAX))) {
-		bmp_time = bmp_time + ONE_STEP;
 
 		// BMPファイル出力時間間隔（FPSに相当）
-		if (bmp_time > BMP_STEP) {
-			bmp_time = 0;		// 初期化
-
+		if (sim.steps%(int)(BMP_STEP/ONE_STEP)==0) {
 			WriteBMP(640, 480);	// BMPファイルを出力
 		}
 	}
