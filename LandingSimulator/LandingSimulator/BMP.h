@@ -1,10 +1,13 @@
+#ifndef _BMP_H
+#define _BMP_H
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <windows.h>
 #include <gl/GL.h>
 
 //BitmapHeader構造体
-typedef struct _BitmapHeaders{
+typedef struct _BitmapHeaders {
 	char	filetype1;
 	char	filetype2;
 	int		filesize;
@@ -27,4 +30,6 @@ typedef struct _BitmapHeaders{
 
 //ODE描画ピクセルデータをＢＭＰファイル出力（１コマンド＝1ファイル）
 extern int WriteBMP(int width, int height);
-extern int SaveBMP(char *folder,int width, int height);
+extern int SaveBMP(char *folder, int width, int height);
+
+#endif // !_BMP_H

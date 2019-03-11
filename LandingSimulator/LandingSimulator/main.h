@@ -19,6 +19,19 @@ using namespace std;
 //////////
 
 typedef struct {
+	double m, C, K, K0;//SLS modelのパラメータ群
+	//m:重さ,C:粘性,K:弾性,K0:弾性(SLS並列ばね)
+}Impedance;
+
+typedef struct {       // MyObject構造体
+	dBodyID body;        // ボディ(剛体)のID番号（動力学計算用）
+	dGeomID geom;        // ジオメトリのID番号(衝突検出計算用）
+	double  l, r, m;       // 長さ[m], 半径[m]，質量[kg]
+	Impedance imp;		 //SLSモデルのインピーダンスパラメータ(pistonのみ)
+} MyObject;
+
+
+typedef struct {
 	//
 	int steps;//シミュレーションステップ数(実際の時刻ではない)
 	//変数
@@ -34,11 +47,8 @@ typedef struct {
 	double times[SIM_CNT_MAX];//シミュレーション時間
 	double log_leglen[SIM_CNT_MAX][LEG_NUM];//脚ロボットの相対長さ
 	double log_legvel[SIM_CNT_MAX][LEG_NUM];//脚ロボットの相対速度
+	dReal log_Tau[SIM_CNT_MAX][LEG_NUM];//脚ロボットへの制御力
+	dReal log_Fz[SIM_CNT_MAX][LEG_NUM];//脚ロボット先端にかかる力
 	
 
 }SIM;
-
-typedef struct {
-	double m,C, K, K0;//SLS modelのパラメータ群
-	//m:重さ,C:粘性,K:弾性,K0:弾性(SLS並列ばね)
-}Impedance;

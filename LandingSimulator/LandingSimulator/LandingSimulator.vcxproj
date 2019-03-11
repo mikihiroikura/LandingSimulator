@@ -126,11 +126,13 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="BMP.cpp" />
+    <ClCompile Include="controlrobot.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="makerobot.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="BMP.h" />
+    <ClInclude Include="controlrobot.h" />
     <ClInclude Include="main.h" />
     <ClInclude Include="makerobot.h" />
     <ClInclude Include="texturepath.h" />

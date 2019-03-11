@@ -12,14 +12,8 @@ extern dGeomID  ground; // 地面
 extern dJointGroupID contactgroup; // コンタクトグループ
 extern dJointID sjoint[LEG_NUM];//スライダージョイント
 extern dJointID fixed[LEG_NUM];//脚ロボットとBodyの固定
-
-typedef struct {       // MyObject構造体
-	dBodyID body;        // ボディ(剛体)のID番号（動力学計算用）
-	dGeomID geom;        // ジオメトリのID番号(衝突検出計算用）
-	double  l, r, m;       // 長さ[m], 半径[m]，質量[kg]
-} MyObject;
-
-extern MyObject body, leg[LEG_NUM], piston[LEG_NUM];
+extern dJointID forcefixed[LEG_NUM];//脚ロボットと力センサの固定
+extern dJointFeedback feedback[LEG_NUM];//力センサからのフィードバック
 
 void makelander() {
 	dMass mass;
@@ -133,4 +127,54 @@ void destroylander() {
 	dGeomDestroy(leg->geom);
 	dGeomDestroy(piston[0].geom);
 	dGeomDestroy(piston[1].geom);
+}
+
+void makeforcesensor() {
+	dMass mass;
+	
+	for (int i = 0; i < LEG_NUM; i++)
+	{
+		//force sensorの作成
+		
+		forcesensor[i].l = 0.0000001;
+		dReal m = piston[i].m/piston[i].l*forcesensor[i].l;//pistonと同じ密度で
+		forcesensor[i].m = m;
+		forcesensor[i].r = piston[i].r;
+		forcesensor[i].body = dBodyCreate(world);
+		dMassSetZero(&mass);
+		dMassSetCylinderTotal(&mass, forcesensor[i].m, 3, forcesensor[i].r, forcesensor[i].l);
+		const dReal *pistonpos = dBodyGetPosition(piston[i].body);
+		dBodySetPosition(forcesensor[i].body, *(pistonpos+0),
+			*(pistonpos + 1), *(pistonpos + 2)-forcesensor[i].l/2.0);
+		forcesensor[i].geom = dCreateCylinder(space, forcesensor[i].r, forcesensor[i].l);
+		dGeomSetBody(forcesensor[i].geom, forcesensor[i].body);
+
+		//force sensorとピストンの固定
+		forcefixed[i] = dJointCreateFixed(world, 0);
+		dJointAttach(forcefixed[i], piston[i].body, forcesensor[i].body);
+		dJointSetFixed(forcefixed[i]);
+
+		//力センサのフィードバック設定
+		dJointSetFeedback(forcefixed[i], &feedback[i]);
+	}
+
+}
+
+void drawforcesensor() {
+	double size[3];
+	dsSetColor(0, 0, 1);
+	for (size_t i = 0; i < LEG_NUM; i++)
+	{
+		dsDrawCylinder(dBodyGetPosition(forcesensor[i].body), dBodyGetRotation(forcesensor[i].body), forcesensor[i].l, forcesensor[i].r);
+	}
+	
+}
+
+void destroyforcesensor() {
+	for (int i = 0; i < LEG_NUM; i++)
+	{
+		dBodyDestroy(forcesensor[i].body);//ボディ破壊
+		dGeomDestroy(forcesensor[i].geom);//ジオメトリ破壊
+	}
+	
 }

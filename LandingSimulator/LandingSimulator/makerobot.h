@@ -9,6 +9,11 @@
 #define dsDrawCapsule dsDrawCapsuleD
 #endif
 
-void makelander();
-void drawlander();
-void destroylander();
+extern MyObject body, leg[LEG_NUM], piston[LEG_NUM], forcesensor[LEG_NUM];
+
+extern void makelander();
+extern void drawlander();
+extern void destroylander();
+extern void makeforcesensor();
+extern void drawforcesensor();
+extern void destroyforcesensor();

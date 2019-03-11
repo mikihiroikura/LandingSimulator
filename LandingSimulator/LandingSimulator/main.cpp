@@ -10,6 +10,8 @@
 
 #include "makerobot.h"
 #include "BMP.h"
+#include "main.h"
+#include "controlrobot.h"
 
 #ifdef dDOUBLE                      // 単精度と倍精度の両方に対応する
 #define dsDrawSphere dsDrawSphereD  // ためのおまじない
@@ -22,10 +24,15 @@
 #define FOLDER_PATH "data/%y%m%d_%H%M%S"
 #define LOG_FILE "/logs.txt"
 #define BMP_FILE "/imgs"
-#define FILENAME_GRAPH1 "img_jnt_pos.png"
-#define FILENAME_GRAPH2 "img_leg_length.png"
+#define FILENAME_GRAPH1 "/img_jnt_pos.png"
+#define FILENAME_GRAPH2 "/img_leg_length.png"
+#define FILENAME_GRAPH3 "/img_ctrl_force.png"
+#define FILENAME_GRAPH4 "/img_ext_force.png"
 
+#define ALL_LOG
 #define BMP_FLG 1
+#define FORCE_SENSOR
+#define SLS_CONTROL
 
 using namespace std;
 
@@ -36,16 +43,13 @@ dJointGroupID contactgroup; // コンタクトグループ
 dsFunctions fn;
 dJointID sjoint[LEG_NUM];//スライダージョイント
 dJointID fixed[LEG_NUM];//脚ロボットとBodyの固定
+dJointID forcefixed[LEG_NUM];//脚ロボットと力センサの固定
+dJointFeedback feedback[LEG_NUM];//力センサからのフィードバック
 
+dReal F[LEG_NUM][3];//力センサから出力される力
+dReal Tau[LEG_NUM];//制御力
 
-typedef struct {       // MyObject構造体
-	dBodyID body;        // ボディ(剛体)のID番号（動力学計算用）
-	dGeomID geom;        // ジオメトリのID番号(衝突検出計算用）
-	double  l, r, m;       // 長さ[m], 半径[m]，質量[kg]
-	Impedance imp;		 //SLSモデルのインピーダンスパラメータ(pistonのみ)
-} MyObject;
-
-MyObject body, leg[LEG_NUM], piston[LEG_NUM];
+MyObject body, leg[LEG_NUM], piston[LEG_NUM],forcesensor[LEG_NUM];//宣言
 char file_name[256];
 char folder_name[256];
 char picfolder[256];
@@ -97,6 +101,11 @@ void restart() {
 	//再生成
 	contactgroup = dJointGroupCreate(0);
 	makelander();
+#ifdef FORCE_SENSOR
+	destroyforcesensor();
+	makeforcesensor();
+#endif // FORCE_SENSOR
+
 }
 
 //キーボードのコマンド
@@ -145,16 +154,21 @@ void ctrlLeg() {
 		for (size_t i = 0; i < LEG_NUM; i++)
 		{
 			piston[i].imp.m = piston[i].m;
-			piston[i].imp.C = 0.8;
-			piston[i].imp.K = 5.2;
-			piston[i].imp.K0 = 1.0;
+			piston[i].imp.C = 10.00;
+			piston[i].imp.K = 52.0;
+			piston[i].imp.K0 = 30.0;
 		}
 
 	}
 	//SLSによる駆動力計算
-
+	calcSLS(&sim);
 
 	//駆動力入力
+	for (size_t i = 0; i < LEG_NUM; i++)
+	{
+		dJointAddSliderForce(sjoint[i], Tau[i]);
+	}
+	
 
 }
 
@@ -168,6 +182,8 @@ void copyLogData() {
 		{
 			sim.log_leglen[sim.steps][i] = sim.leglen[i];
 			sim.log_legvel[sim.steps][i] = sim.legvel[i];
+			sim.log_Tau[sim.steps][i] = Tau[i];
+			sim.log_Fz[sim.steps][i] = F[i][2];
 		}
 	}
 }
@@ -177,7 +193,9 @@ static void simLoop(int pause) {
 	//UAVオブジェクトの書き込み
 	//dReal bx = 0.1; dReal by = 0.3; dReal bz = 0.05;
 	drawlander();
-	
+#ifdef FORCE_SENSOR
+	drawforcesensor();
+#endif // FORCE_SENSOR
 
 	//BMPファイルの出力
 	if (BMP_FLG == 1 && ((sim.steps >= 0) && (sim.steps < SIM_CNT_MAX))) {
@@ -190,13 +208,23 @@ static void simLoop(int pause) {
 
 
 	//脚ロボットの状態量の更新
-
+	dJointFeedback *fb;
+	for (size_t i = 0; i < LEG_NUM; i++)
+	{
+		fb = dJointGetFeedback(forcefixed[i]);
+		for (int j = 0; j < 3; j++)
+		{
+			F[i][j] = -fb->f2[j];//力センサで計測されたピストンにかかる力
+		}
+	}
 
 	//脚ロボット先端と地面との距離計測
-	//calcDist();
+	calcDist();
 
-	//力計算
-	//何か
+	//制御力計算，代入
+	#ifdef SLS_CONTROL
+	ctrlLeg();
+	#endif // SLS_CONTROL
 
 	//計算結果をログとして保存
 	copyLogData();
@@ -223,6 +251,8 @@ void setDrawStuff()           /*** 描画関数の設定 ***/
 
 //日付ありのtxtファイルにデータ書き込み
 void saveData() {
+	//時間，高度，脚1長さ，脚2長さ，脚1速度，脚2速度
+	//，脚1制御力，脚2制御力，脚1外力，脚2外力
 	time_t timer;
 	struct tm now;
 	struct tm *local;
@@ -237,26 +267,36 @@ void saveData() {
 	{
 		fprintf(fp, "%f ", sim.times[i]);
 		fprintf(fp, "%f ", sim.heights[i]);
-		for (size_t j = 0; j < LEG_NUM; j++)
-		{
-			fprintf(fp, "%f ", sim.log_leglen[i][j]);
-			fprintf(fp, "%f ", sim.log_legvel[i][j]);
-		}
+		for (size_t j = 0; j < LEG_NUM; j++){fprintf(fp, "%f ", sim.log_leglen[i][j]);}
+		for (size_t j = 0; j < LEG_NUM; j++) { fprintf(fp, "%f ", sim.log_legvel[i][j]); }
+		for (size_t j = 0; j < LEG_NUM; j++) { fprintf(fp, "%f ", sim.log_Tau[i][j]); }
+		for (size_t j = 0; j < LEG_NUM; j++) { fprintf(fp, "%f ", sim.log_Fz[i][j]); }
 		fprintf(fp, "\n");
 	}
 	fclose(fp);
 }
 
 //txtファイル内のデータをGNUPLOTでグラフ化
-void saveGraph() {
+void saveGraph(char *folder) {
 	FILE *gp;
+	char graph_filename[256];
 	if ((gp = _popen(GNUPLOT_PATH, "w")) == NULL) { printf("Can not find %s!", GNUPLOT_PATH);}
 	else { printf("GNUPLOT activates.\n"); }
 	fprintf(gp, "pl \"%s\" us 1:2 w l\n", file_name);
-	fprintf(gp, "set terminal png\n set out \"%s\"\n rep\n", FILENAME_GRAPH1);
-	fprintf(gp, "set term wxt 1\n");
-	fprintf(gp, "pl \"%s\" us 1:3 w l, \"%s\" us 1:5 w l\n", file_name,file_name);
-	fprintf(gp, "set terminal png\n set out \"%s\"\n rep\n", FILENAME_GRAPH2);
+	sprintf(graph_filename, "%s%s", folder, FILENAME_GRAPH1);
+	fprintf(gp, "set terminal png\n set out \"%s\"\n rep\n", graph_filename);//UAV重心位置のグラフ
+	fprintf(gp, "set term wxt 1\n");//ID:1のウインドウを生成
+	fprintf(gp, "pl \"%s\" us 1:3 w l, \"%s\" us 1:4 w l\n", file_name,file_name);
+	sprintf(graph_filename, "%s%s", folder, FILENAME_GRAPH2);
+	fprintf(gp, "set terminal png\n set out \"%s\"\n rep\n", graph_filename);//脚ロボットの長さグラフ
+	fprintf(gp, "set term wxt 2\n");//ID:2のウインドウを生成
+	fprintf(gp, "pl \"%s\" us 1:7 w l, \"%s\" us 1:8 w l\n", file_name, file_name);
+	sprintf(graph_filename, "%s%s", folder, FILENAME_GRAPH3);
+	fprintf(gp, "set terminal png\n set out \"%s\"\n rep\n", graph_filename);//脚ロボットの制御力グラフ
+	fprintf(gp, "set term wxt 3\n");//ID:3のウインドウを生成
+	fprintf(gp, "pl \"%s\" us 1:9 w l, \"%s\" us 1:10 w l\n", file_name, file_name);
+	sprintf(graph_filename, "%s%s", folder, FILENAME_GRAPH4);
+	fprintf(gp, "set terminal png\n set out \"%s\"\n rep\n", graph_filename);//脚ロボットの外力グラフ
 	fflush(gp); // バッファに格納されているデータを吐き出す（必須）
 	_pclose(gp);
 }
@@ -274,14 +314,25 @@ int main(int argc, char **argv) {
 	ground = dCreatePlane(space, 0, 0, 1, 0);
 
 	makelander();
+#ifdef FORCE_SENSOR
+	makeforcesensor();
+#endif // FORCE_SENSOR
+
+	#ifdef SLS_CONTROL
+	initSLS();
+	#endif // SLS_CONTROL
 
 	dsSimulationLoop(argc, argv, 640, 480, &fn);
 	
+	#ifdef ALL_LOG
 	saveData();
-	saveGraph();
+	saveGraph(folder_name);
 	sprintf(picfolder, "%s%s", folder_name, BMP_FILE);
 	_mkdir(picfolder);
-	SaveBMP(picfolder,640, 480);
+	SaveBMP(picfolder, 640, 480);
+	#endif // ALL_LOG
+
+	
 
 	dSpaceDestroy(space);
 	dWorldDestroy(world);
